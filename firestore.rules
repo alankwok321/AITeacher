@@ -1,0 +1,170 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net default catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && (
+        request.auth.token.email_verified == true 
+        || request.auth.token.firebase.sign_in_provider == 'google.com'
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // User Model Helper
+    function isValidUser(data) {
+      return data.uid is string 
+        && data.uid.size() <= 128 
+        && data.uid == request.auth.uid
+        && data.email is string 
+        && data.email.size() <= 256
+        && (data.displayName == null || (data.displayName is string && data.displayName.size() <= 256))
+        && (data.photoURL == null || (data.photoURL is string && data.photoURL.size() <= 1024));
+    }
+
+    // ChatSession Model Helper
+    function isValidSession(data, uId, sId) {
+      return data.id is string 
+        && data.id == sId
+        && data.title is string 
+        && data.title.size() <= 500
+        && data.ownerId is string 
+        && data.ownerId == uId
+        && data.ownerId == request.auth.uid
+        && data.personalityId is string 
+        && data.personalityId.size() <= 64
+        && data.useSearch is bool
+        && data.voiceId is string 
+        && data.voiceId.size() <= 64
+        && data.messages is list 
+        && data.messages.size() <= 1000;
+    }
+
+    // GlobalSettings Model Helper
+    function isValidGlobalSettings(data) {
+      return (!('personalityId' in data) || (data.personalityId is string && data.personalityId.size() <= 64))
+        && (!('useSearch' in data) || data.useSearch is bool)
+        && (!('voiceId' in data) || (data.voiceId is string && data.voiceId.size() <= 64))
+        && (!('responseLength' in data) || (data.responseLength is string && (data.responseLength == 'short' || data.responseLength == 'medium' || data.responseLength == 'long')))
+        && (!('activeTextbookId' in data) || (data.activeTextbookId == null || (data.activeTextbookId is string && data.activeTextbookId.size() <= 128)))
+        && (!('onlyUseTextbook' in data) || (data.onlyUseTextbook == null || data.onlyUseTextbook is bool));
+    }
+
+    // Textbook Model Helper for Metadata only
+    function isValidTextbook(data) {
+      return data.id is string
+        && data.id.size() <= 128
+        && data.name is string
+        && data.name.size() <= 512
+        && data.uploadedAt is string
+        && data.uploadedAt.size() <= 64
+        && data.uploadedBy is string
+        && data.uploadedBy.size() <= 128
+        && data.totalChars is number;
+    }
+
+    // Textbook Content Model Helper
+    function isValidTextbookContent(data) {
+      return data.id is string
+        && data.id.size() <= 128
+        && data.chunks is list
+        && data.chunks.size() <= 120;
+    }
+
+    function isAdmin() {
+      return isEmailVerified() && request.auth.token.email == "alankwok321@gmail.com";
+    }
+
+    // Rule match for users
+    match /users/{userId} {
+      allow read: if (isSignedIn() && request.auth.uid == userId && isValidId(userId)) || isAdmin();
+      
+      allow create: if isEmailVerified() 
+        && request.auth.uid == userId 
+        && isValidId(userId) 
+        && isValidUser(incoming())
+        && incoming().createdAt == request.time
+        && incoming().lastLogin == request.time;
+        
+      allow update: if isEmailVerified() 
+        && request.auth.uid == userId 
+        && isValidId(userId) 
+        && isValidUser(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().lastLogin == request.time;
+    }
+
+    // Rule match for chat sessions as subcollection under users
+    match /users/{userId}/sessions/{sessionId} {
+      allow read: if (isSignedIn() && request.auth.uid == userId && isValidId(userId)) || isAdmin();
+      
+      allow create: if isEmailVerified()
+        && request.auth.uid == userId
+        && isValidId(userId)
+        && isValidId(sessionId)
+        && isValidSession(incoming(), userId, sessionId)
+        && incoming().createdAt is string
+        && incoming().createdAt.size() <= 64;
+        
+      allow update: if isEmailVerified()
+        && request.auth.uid == userId
+        && isValidId(userId)
+        && isValidId(sessionId)
+        && isValidSession(incoming(), userId, sessionId)
+        && incoming().createdAt == existing().createdAt;
+        
+      allow delete: if (isSignedIn()
+        && request.auth.uid == userId
+        && isValidId(userId)
+        && isValidId(sessionId))
+        || isAdmin();
+    }
+
+    // Support collection group session queries specifically for admins
+    match /{path=**}/sessions/{sessionId} {
+      allow read: if isAdmin();
+    }
+
+    // Rule match for global settings
+    match /settings/{settingsId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidId(settingsId) && isValidGlobalSettings(incoming());
+      allow update: if isSignedIn() && isValidId(settingsId) && isValidGlobalSettings(incoming()) &&
+        (incoming().diff(existing()).affectedKeys().hasOnly(['activeTextbookId', 'onlyUseTextbook']));
+    }
+
+    // Rule match for textbooks reference
+    match /textbooks/{textbookId} {
+      allow read: if isSignedIn();
+      allow create, update: if isAdmin() && isValidId(textbookId) && isValidTextbook(incoming());
+      allow delete: if isAdmin() && isValidId(textbookId);
+    }
+
+    // Rule match for textbook full contents reference
+    match /textbooks_contents/{textbookId} {
+      allow read: if isSignedIn();
+      allow create, update: if isAdmin() && isValidId(textbookId) && isValidTextbookContent(incoming());
+      allow delete: if isAdmin() && isValidId(textbookId);
+    }
+  }
+}

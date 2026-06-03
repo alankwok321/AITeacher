@@ -1,0 +1,96 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Information about a registered user",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The firebase auth UID of the user" },
+        "email": { "type": "string", "description": "User email address" },
+        "displayName": { "type": "string", "description": "User visible display name" },
+        "photoURL": { "type": "string", "description": "User avatar photo url" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Time of registration" },
+        "lastLogin": { "type": "string", "format": "date-time", "description": "Last login timestamp" }
+      },
+      "required": ["uid", "email", "createdAt", "lastLogin"]
+    },
+    "ChatSession": {
+      "title": "Chat Session",
+      "description": "A conversation log owned by a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique session ID" },
+        "title": { "type": "string", "description": "Conversation title" },
+        "ownerId": { "type": "string", "description": "The UID of the user owning this session" },
+        "personalityId": { "type": "string", "description": "ID of the AI personality chosen" },
+        "useSearch": { "type": "boolean", "description": "Whether google search grounding is enabled" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Time of creation" },
+        "voiceId": { "type": "string", "description": "Speech synthesis voice ID" },
+        "messages": {
+          "type": "array",
+          "description": "List of messages in this session"
+        }
+      },
+      "required": ["id", "title", "ownerId", "personalityId", "useSearch", "createdAt", "voiceId", "messages"]
+    },
+    "GlobalSettings": {
+      "title": "Global Settings",
+      "description": "System-wide parameters managed by Admin",
+      "type": "object",
+      "properties": {
+        "personalityId": { "type": "string", "description": "Active global AI character setting" },
+        "useSearch": { "type": "boolean", "description": "Whether google search is universally enabled" },
+        "voiceId": { "type": "string", "description": "Active system voice preset" },
+        "responseLength": { "type": "string", "enum": ["short", "medium", "long"], "description": "Answer length verbosity" },
+        "activeTextbookId": { "type": "string", "description": "Selected reference textbook ID" },
+        "onlyUseTextbook": { "type": "boolean", "description": "If true, AI must answer questions only based on provided textbook" }
+      },
+      "required": ["personalityId", "useSearch", "voiceId", "responseLength", "activeTextbookId", "onlyUseTextbook"]
+    },
+    "Textbook": {
+      "title": "Textbook",
+      "description": "Textbook metadata containing info about the textbook",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID of the textbook" },
+        "name": { "type": "string", "description": "Original file name of the textbook" },
+        "uploadedAt": { "type": "string", "format": "date-time", "description": "Timestamp of upload" },
+        "uploadedBy": { "type": "string", "description": "UID of the admin who uploaded it" },
+        "totalChars": { "type": "number", "description": "Total length of extracted text" }
+      },
+      "required": ["id", "name", "uploadedAt", "uploadedBy", "totalChars"]
+    },
+    "TextbookContent": {
+      "title": "Textbook Content",
+      "description": "The heavy raw content split chunks for a given textbook",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID of the textbook" },
+        "chunks": { "type": "array", "description": "A split array of text chunks to fit within Firestore document limits" }
+      },
+      "required": ["id", "chunks"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile resources"
+    },
+    "/users/{userId}/sessions/{sessionId}": {
+      "schema": "ChatSession",
+      "description": "The chat histories for a specific user"
+    },
+    "/settings/{settingsId}": {
+      "schema": "GlobalSettings",
+      "description": "Global settings for UI tuning"
+    },
+    "/textbooks/{textbookId}": {
+      "schema": "Textbook",
+      "description": "Tiny textbook metadata storage"
+    },
+    "/textbooks_contents/{textbookId}": {
+      "schema": "TextbookContent",
+      "description": "Heavy raw text layers for referencing custom textbooks"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "智慧小老師",
+  "description": "智慧小老師：具備頂尖生成式 AI 技術的個人智慧伴侶。亮點功能包含：整合最新網頁搜尋與教科書知識庫、支援人聲朗讀、並提供高精確度的語音聲控輸入。",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
